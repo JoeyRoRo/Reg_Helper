@@ -10,6 +10,9 @@ parent_dir = os.path.abspath(os.path.dirname(__file__))
 vendor_dir = os.path.join(parent_dir, 'vendor')
 sys.path.append(vendor_dir)
 
+# Vendored deps
+import clapp
+
 # use the correct clear command depending on OS
 if os.name == 'nt':
     CLEAR_CMD = 'cls'
@@ -46,26 +49,33 @@ def get_answers():
 
 
 def run():
-    hits = 0
+    answers = get_answers()
+    _run(answers)
+
+
+def _run(answers):
     dups = {}
 
-    answers = get_answers()
-
     read_file_for_dups(answers[0], dups)
-    read_file_for_dups(answers[1], dups)
+    read_file_for_dups(answers[1], dups, special_fields=True)
 
-    output_to_file(answers)
+    hits = output_to_file(answers, dups)
 
     raw_input('\n\nSearch finished with '+str(hits) +
               ' results found. Please press enter to return.')
 
 
-def output_to_file(answers):
+def output_to_file(answers, dups):
     now = time.strftime("%d%b%Y-%H%M")
     path = os.getcwd()
-    save_file = path+"\\Search_Results\\Database_Sumary_on_"+str(now)+'.txt'
+    path = os.path.join(path, "Search_Results")
+    save_file = os.path.join(
+        path, 'Database_Sumary_on_{}.txt'.format(str(now)))
 
-    sys.stdout.write('\nWriting search hits to file...')
+    total_hits = 0
+
+    print('Writing search hits to file...')
+
     with open(answers[0], 'r') as first_file:
         with open(answers[1], 'r') as second_file:
             with open(save_file, 'w') as output:
@@ -79,35 +89,29 @@ def output_to_file(answers):
 
                 for z in sorted(dups, key=dups.__getitem__, reverse=True):
                     found_lines = []
-                    sesh = ''
+                    sesh_ids = []
+                    hits = 0
 
                     if dups[z] > 1:
-                        first_file.seek(0)
-                        for _ in range(2):
-                            next(first_file)
-                        for line in first_file:
-                            line1_split = line.split(',')
-                            if str(z) in line:
-                                if not sesh == line1_split[1]:
-                                    sesh = line1_split[1]
-                                    found_lines.append(line)
-
-                        second_file.seek(0)
-                        for _ in range(2):
-                            next(second_file)
-                        for line2 in second_file:
-                            line2_split = line2.split(',')
-                            if str(z) in line2:
-                                if not sesh == line2_split[1]:
-                                    sesh = line2_split[1]
-                                    found_lines.append(line2)
+                        find_lines(first_file, z, sesh_ids, found_lines)
+                        find_lines(second_file, z, sesh_ids, found_lines)
 
                         output.write('\nFound '+str(z)+' with ' +
                                      str(dups[z])+' hits.\n')
+
                         for k in found_lines:
                             output.write(k)
-                            sys.stdout.write('.')
                             hits += 1
+                    total_hits += hits
+    return total_hits
+
+
+def validate_new_db(ctx):
+    validate_file_read(ctx['newdb'])
+
+
+def validate_old_db(ctx):
+    validate_file_read(ctx['olddb'])
 
 
 def validate_file_read(f):
@@ -142,6 +146,9 @@ def read_file_for_dups(f, dups, special_fields=False):
     special_fields: bool
         If True each line will be checked if it starts with 'Time' or 'Combined' and skip if so
     """
+
+    print('Reading database \'{}\'...'.format(f))
+
     with open(f, 'r') as log:
         # skip first two lines of second log
         for _ in range(2):
@@ -172,3 +179,64 @@ def check_and_add_segment(segment, dups):
         dups.update({str(segment): 1})
     else:
         dups[segment] += 1
+
+
+def find_lines(f, z, sesh_ids, found_lines):
+    """
+    Checks the entire file for lines matching the segment and adds lines with unique session ids
+
+    Parameters
+    ----------
+    f: string
+        The file to check
+    z: string
+        The segment to check for
+    sesh_ids: list(string)
+        A list of session ids that have already been found and used
+    found_lines: list(string)
+        A list of found lines to append to
+    """
+    f.seek(0)
+    for _ in range(2):
+        next(f)
+    for line in f:
+        line1_split = line.split(',')
+        if z in line:
+            if line1_split[1] not in sesh_ids:
+                sesh_ids.append(line1_split[1])
+                found_lines.append(line)
+
+
+def main(ctx):
+    answers = [ctx['olddb'], ctx['newdb']]
+    _run(answers)
+
+
+def build_app():
+    app = clapp.App('db_stats')
+    app.version = '1.0'
+    app.about = 'Does some string finding on database files'
+    app.author = 'JoeJoeJoey <joejoejoey13@gmail.com>'
+    app.main = main
+
+    arg1 = clapp.Arg('olddb')
+    arg1.index = 1
+    arg1.help = 'The old database'
+    arg1.required = True
+    arg1.action = validate_old_db
+
+    arg2 = clapp.Arg('newdb')
+    arg2.index = 2
+    arg2.help = 'The new database'
+    arg2.required = True
+    arg2.action = validate_new_db
+
+    app.add_args([arg1, arg2])
+
+    return app
+
+
+if __name__ == '__main__':
+    app = build_app()
+    app.start()
+    sys.exit(0)
