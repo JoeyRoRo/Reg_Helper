@@ -7,9 +7,10 @@ For any questions on the program please feel free to hit me up
 at joejoejoey13@gmail.com. Thanks and take care.
 '''
 from __future__ import print_function
+
+# Vendored Deps
 import consolemenu
 
-
-app_title = '{}\n ### Reg Helper ###\n{}'.format('#'*20,'#'*20)
-cm = consolemenu.ConsoleMenu('menu',title=app_title)
+app_title = '{}\n###  Reg Helper  ###\n{}'.format('#'*20, '#'*20)
+cm = consolemenu.ConsoleMenu('menu', title=app_title)
 cm.start()
