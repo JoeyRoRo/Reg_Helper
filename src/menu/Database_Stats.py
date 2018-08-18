@@ -5,6 +5,12 @@ import os
 import time
 import sys
 
+# Set up Vendoring
+parent_dir = os.path.abspath(os.path.dirname(__file__))
+vendor_dir = os.path.join(parent_dir, 'vendor')
+sys.path.append(vendor_dir)
+
+# use the correct clear command depending on OS
 if os.name == 'nt':
     CLEAR_CMD = 'cls'
 else:
@@ -15,8 +21,6 @@ disp_name = 'Database Stats'
 otype = 'Routine'
 need = ['Where is the location of your Old Database file: ',
         'Where is the location of your New Database file: ']
-dups = {}
-hits = 0
 
 
 def get_answers():
@@ -42,64 +46,13 @@ def get_answers():
 
 
 def run():
-    global dups, hits
     hits = 0
     dups = {}
 
     answers = get_answers()
 
-    wait_timer('\nSearching your log files..')
-
-    with open(answers[0], 'r') as log_file:
-        with open(answers[1], 'r') as second_log:
-            for _ in range(2):
-                next(log_file)
-            for line in log_file:
-                # if line.startswith('Time') or  line.startswith('Combined'):
-                #    pass
-                # else:
-                line_split = line.split(',')
-
-                if not line_split[3] in dups:
-                    if (line_split[3] != ''):
-                        dups.update({str(line_split[3]): 1})
-                else:
-                    dups[line_split[3]] += 1
-
-                if not line_split[6] in dups:
-                    if line_split[6] != '':
-                        dups.update({str(line_split[6]): 1})
-                else:
-                    dups[line_split[6]] += 1
-
-            for _ in range(2):
-                next(second_log)
-            for line in second_log:
-                if line.startswith('Time') or line.startswith('Combined'):
-                    pass
-                else:
-                    line_split = line.split(',')
-
-                    if not line_split[3] in dups:
-                        if (line_split[3] != ''):
-                            dups.update({str(line_split[3]): 1})
-                    else:
-                        dups[line_split[3]] += 1
-
-                    if not line_split[6] in dups:
-                        if line_split[6] != '':
-                            dups.update({str(line_split[6]): 1})
-                    else:
-                        dups[line_split[6]] += 1
-
-# Where I tried to cut out dups that were equal to 1
-#                del_one=''
-#                for w in sorted(dups, key=dups.__getitem__):
-#                    if not del_one == '':
-#                        del dups[del_one]
-#                        del_one=''
-#                    if dups[w]==1:
-#                        del_one=str(w)
+    read_file_for_dups(answers[0], dups)
+    read_file_for_dups(answers[1], dups)
 
     output_to_file(answers)
 
@@ -108,7 +61,6 @@ def run():
 
 
 def output_to_file(answers):
-    global hits
     now = time.strftime("%d%b%Y-%H%M")
     path = os.getcwd()
     save_file = path+"\\Search_Results\\Database_Sumary_on_"+str(now)+'.txt'
@@ -171,19 +123,52 @@ def validate_file_read(f):
         open(f, 'r')
     except:
         print('error: unable to read file \'{}\'\n\
-please ensure the file exists and is readable\n'.format(f))
+    please ensure the file exists and is readable\n'.format(f))
         return False
     return True
 
 
-def wait_timer(what):
+def read_file_for_dups(f, dups, special_fields=False):
     """
-    this sections prints a wait timer
+    Opens the file for reading. Reads each line into a dictionary. Counts how many times the line
+    fragment has been used.
+
+    Parameters
+    ----------
+    f: string
+        The file to read
+    dups: dict(string, int)
+        The line segment as a string and it's occurrences
+    special_fields: bool
+        If True each line will be checked if it starts with 'Time' or 'Combined' and skip if so
     """
-    sys.stdout.write(what+'..')
-    i = 4
-    while i > 0:
-        sys.stdout.write('.')
-        sys.stdout.flush()
-        time.sleep(.25)
-        i -= 1
+    with open(f, 'r') as log:
+        # skip first two lines of second log
+        for _ in range(2):
+            next(log)
+
+        for line in log:
+            if special_fields and line.startswith('Time') or line.startswith('Combined'):
+                pass
+
+            line_split = line.split(',')
+
+            check_and_add_segment(line_split[3], dups)
+            check_and_add_segment(line_split[6], dups)
+
+
+def check_and_add_segment(segment, dups):
+    """
+    Checks if the segment (key) is already in the dictionay, and increases the count (value) if so
+
+    Parameters
+    ----------
+    segment: string
+        The segment to check as the dictionary key
+    dups: dict(string, int)
+        The dictionary to check against
+    """
+    if segment and not segment in dups:
+        dups.update({str(segment): 1})
+    else:
+        dups[segment] += 1
