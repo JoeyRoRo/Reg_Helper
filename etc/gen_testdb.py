@@ -14,8 +14,8 @@ import random
 import progressbar
 import clapp
 
-weights = [50] * 1 + [30] * 1 + [20] * 4 + [10] * 2 + \
-    [5] * 7 + [3] * 20 + [2] * 20 + [1] * 45
+weights = [50] * 1 + [30] * 1 + [20] * 4 + [10] * 20 + \
+    [5] * 70 + [3] * 200 + [2] * 200 + [1] * 450
 spec_words_weights = [False] * 99 + [True]
 sesh_id_weights = [123456] * 33 + [789123] * 33 + [456789] * 34
 USE_SPECIAL = False
@@ -29,6 +29,8 @@ def use_special(context):
 def main(ctx):
     words = []
     print('Picking random words...')
+    # If the user wants 1000 lines, we actually need about
+    # 2,000 words since each line has 2 words
     MAX = ctx['lines'] * 2
     with open(ctx['word_file'], 'r') as w:
         for i, _ in enumerate(w):
@@ -43,17 +45,24 @@ def main(ctx):
                 r_line = random.randint(1, word_line_count)
                 for j, line in enumerate(w):
                     if j == r_line:
-                        for _ in range(0, random.choice(weights)):
-                            words.append(line.strip())
-                            i += 1
+                        words.append(line.strip())
+                        i += 1
                         break
+
+    # Now we have a bunch of random words
+    # we need to duplicate some of them
+    for i in range(len(words)/3):
+        word = words[i]
+        for _ in range(random.choice(weights)):
+            words.append(word)
 
     testdb = ctx['output'][0]
     print('Writing {}...'.format(testdb))
     with open(testdb, 'w') as f:
         f.write('header line 1 which is ignored by scripts\n')
         f.write('header line 2 which is ignored by scripts\n')
-        while words:
+        i = 0
+        while i < ctx['lines']:
             if USE_SPECIAL and random.choice(spec_words_weights):
                 f.write('Time,a,{},c,{},e,f,{},h,i\n'.format(
                     random.choice(sesh_id_weights),
@@ -64,6 +73,7 @@ def main(ctx):
                     random.choice(sesh_id_weights),
                     words.pop(random.randint(0, len(words)-1)),
                     words.pop(random.randint(0, len(words)-1))))
+            i += 1
     return 0
 
 
