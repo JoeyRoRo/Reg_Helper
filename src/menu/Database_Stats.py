@@ -41,6 +41,8 @@ def get_answers():
             if not ans:
                 sys.exit(0)
 
+            # Because we drag and drop files that have quotes around them
+            ans = ans[1:-1]
             if validate_file_read(ans):
                 answers.append(ans)
                 i += 1
@@ -78,6 +80,7 @@ def output_to_file(answers, dups):
 
     with open(answers[0], 'r') as first_file:
         with open(answers[1], 'r') as second_file:
+            # Need to manually make 'Search_Results' folder as github doesn't carry empty folders
             with open(save_file, 'w') as output:
                 output.write('Summary of search hits...\n')
 
@@ -160,8 +163,11 @@ def read_file_for_dups(f, dups, special_fields=False):
 
             line_split = line.split(',')
 
-            check_and_add_segment(line_split[3], dups)
-            check_and_add_segment(line_split[6], dups)
+            # Because some fields are empty and cause errors
+            if not line_split[3] == '':
+                check_and_add_segment(line_split[3], dups)
+            if not line_split[6] == '':
+                check_and_add_segment(line_split[6], dups)
 
 
 def check_and_add_segment(segment, dups):
