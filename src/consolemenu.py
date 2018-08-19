@@ -47,6 +47,12 @@ import subprocess
 __version__ = '0.3.4'
 __author__ = 'Kevin K. <kbknapp@gmail.com>'
 
+if os.name == 'nt':
+    CLEAR_CMD = 'cls'
+else:
+    CLEAR_CMD = 'clear'
+
+
 class ConsoleMenu(object):
     def __init__(self, menu_path, title=''):
         self.__options = dict()
@@ -76,12 +82,15 @@ class ConsoleMenu(object):
                     elif f[-1] == '~':
                         continue
                     fm_list = ['.'.join(self.__mod_prefix)]
-                    pkg = '{}.{}'.format(fm_list[0],os.path.splitext(os.path.basename(f))[0])
+                    pkg = '{}.{}'.format(
+                        fm_list[0], os.path.splitext(os.path.basename(f))[0])
                     mod = __import__(pkg, fromlist=fm_list)
                     if mod.otype.lower() == 'menu':
-                        self.__options[str(i)] = [mod.short_name, mod.disp_name, 'menu', mod.sub_menu, f]
+                        self.__options[str(i)] = [
+                            mod.short_name, mod.disp_name, 'menu', mod.sub_menu, f]
                     else:
-                        self.__options[str(i)] = [mod.short_name, mod.disp_name, 'routine', mod.run, f]
+                        self.__options[str(i)] = [
+                            mod.short_name, mod.disp_name, 'routine', mod.run, f]
                     if f[-1] == 'c':
                         added.append(f[:-1])
                     else:
@@ -90,13 +99,15 @@ class ConsoleMenu(object):
                     while str(i) in self.__options:
                         i += 1
                 if len(self.__history) > 0:
-                    self.__options[str(i)] = ['Back', 'Back', 'Routine', self.back, None]
+                    self.__options[str(i)] = ['Back', 'Back',
+                                              'Routine', self.back, None]
                 else:
-                    self.__options[str(i)] = ['Quit', 'Quit', 'Routine', self.exit, None]
+                    self.__options[str(i)] = ['Quit', 'Quit',
+                                              'Routine', self.exit, None]
                 return
 
     def update_display(self):
-        os.system('cls')
+        os.system(CLEAR_CMD)
         if self.__title:
             print(self.__title)
             print('\n')
@@ -136,7 +147,7 @@ class ConsoleMenu(object):
             self.__mod_prefix.append(mod[3])
             self.__menu_bar.append(mod[0])
             d = self.__mod_prefix[:]
-            d.insert(0,self.__basedir)
+            d.insert(0, self.__basedir)
             self.build_options('/'.join(d))
         elif otype == 'routine':
             self.enter_on()
@@ -159,13 +170,14 @@ class ConsoleMenu(object):
                     self.do_option(ans)
 
 
-valid_args = {'v':'\nConsole Menu v{}\n'.format(__version__),
-                'h':'''
+valid_args = {'v': '\nConsole Menu v{}\n'.format(__version__),
+              'h': '''
 Usage: consolemenu.py [flags]
 
 FLAGS:
     -v, --version       Display version information
     -h, --help          Display help information\n'''}
+
 
 def do_arg(arg):
     if arg[0] != '-':
@@ -178,12 +190,13 @@ def do_arg(arg):
             print(valid_args[c])
             return
 
+
 if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         do_arg(sys.argv[1])
         sys.exit(0)
 
-    m_dir = os.path.join(os.path.dirname(__file__),'menu')
+    m_dir = os.path.join(os.path.dirname(__file__), 'menu')
     cm = ConsoleMenu(m_dir)
     cm.start()

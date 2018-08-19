@@ -1,0 +1,11 @@
+# swap files
+.*~
+
+# Compiled python files
+*.pyc
+
+# Output files
+/Search_Results/*
+
+# Testing Data
+src/testdb*
