@@ -26,6 +26,26 @@ need = ['Where is the location of your Old Database file: ',
         'Where is the location of your New Database file: ']
 
 
+def run():
+    answers = get_answers()
+    _run(answers)
+
+
+def _run(answers):
+    dups = {}
+
+    read_file_for_dups(answers[0], dups)
+    read_file_for_dups(answers[1], dups, special_fields=True)
+
+    hits = output_to_file(answers, dups)
+
+    print('\n\nSearch finished with {} results found.'.format(hits))
+
+    # We don't want to pause if we running in script mode
+    if __name__ != '__main__':
+        raw_input('Please press enter to return.')
+
+
 def get_answers():
     """
     Gets the answers from the user. An empty answer from the user quits
@@ -41,72 +61,11 @@ def get_answers():
             if not ans:
                 sys.exit(0)
 
-            # Because we drag and drop files that have quotes around them
-            ans = ans[1:-1]
             if validate_file_read(ans):
                 answers.append(ans)
                 i += 1
         break
     return answers
-
-
-def run():
-    answers = get_answers()
-    _run(answers)
-
-
-def _run(answers):
-    dups = {}
-
-    read_file_for_dups(answers[0], dups)
-    read_file_for_dups(answers[1], dups, special_fields=True)
-
-    hits = output_to_file(answers, dups)
-
-    raw_input('\n\nSearch finished with '+str(hits) +
-              ' results found. Please press enter to return.')
-
-
-def output_to_file(answers, dups):
-    now = time.strftime("%d%b%Y-%H%M")
-    path = os.getcwd()
-    path = os.path.join(path, "Search_Results")
-    save_file = os.path.join(
-        path, 'Database_Sumary_on_{}.txt'.format(str(now)))
-
-    total_hits = 0
-
-    print('Writing search hits to file...')
-
-    with open(answers[0], 'r') as first_file:
-        with open(answers[1], 'r') as second_file:
-            # Need to manually make 'Search_Results' folder as github doesn't carry empty folders
-            with open(save_file, 'w') as output:
-                output.write('Summary of search hits...\n')
-
-                for z in sorted(dups, key=dups.__getitem__, reverse=True):
-                    if dups[z] > 1:
-                        output.write(str(z)+': '+str(dups[z])+'\n')
-
-                output.write('\n\nHere are the search results...\n')
-
-                for z in sorted(dups, key=dups.__getitem__, reverse=True):
-                    found_lines = []
-                    sesh_ids = []
-                    hits = 0
-
-                    if dups[z] > 1:
-                        find_lines(first_file, z, sesh_ids, found_lines)
-                        find_lines(second_file, z, sesh_ids, found_lines)
-
-                        output.write('\nFound '+str(z)+' with ' +
-                                     str(dups[z])+' hits.\n')
-
-                        for k in found_lines:
-                            output.write(k)
-                            hits += 1
-                    total_hits += hits
-    return total_hits
 
 
 def validate_new_db(ctx):
@@ -159,18 +118,15 @@ def read_file_for_dups(f, dups, special_fields=False):
 
         for line in log:
             if special_fields and line.startswith('Time') or line.startswith('Combined'):
-                pass
+                continue
 
             line_split = line.split(',')
 
-            # Because some fields are empty and cause errors
-            if not line_split[3] == '':
-                check_and_add_segment(line_split[3], dups)
-            if not line_split[6] == '':
-                check_and_add_segment(line_split[6], dups)
+            check_and_add_segment(line_split[3], line, dups)
+            check_and_add_segment(line_split[6], line, dups)
 
 
-def check_and_add_segment(segment, dups):
+def check_and_add_segment(segment, line, dups):
     """
     Checks if the segment (key) is already in the dictionay, and increases the count (value) if so
 
@@ -182,19 +138,67 @@ def check_and_add_segment(segment, dups):
         The dictionary to check against
     """
     if segment and not segment in dups:
-        dups.update({str(segment): 1})
+        dups[segment] = (1, [line])
     else:
-        dups[segment] += 1
+        occs = dups[segment][0] + 1
+        lines = dups[segment][1]
+        lines.append(line)
+        dups[segment] = (occs, lines)
 
 
-def find_lines(f, z, sesh_ids, found_lines):
+def output_to_file(answers, dups):
+    now = time.strftime("%d%b%Y-%H%M")
+    path = os.getcwd()
+    path = os.path.join(path, "Search_Results")
+    save_file = os.path.join(
+        path, 'Database_Sumary_on_{}.txt'.format(now))
+
+    total_hits = 0
+
+    print('Trimming dups...')
+    # make a new dict with only the items whos value is greater than 1
+    trimmed = {k: v for k, v in dups.iteritems() if k and v[0] > 1}
+
+    print('Writing summary search hits to file...')
+
+    with open(save_file, 'w') as output:
+        output.write('Summary of search hits...\n')
+
+        s_trimmed = sorted(
+            trimmed, key=trimmed.__getitem__, reverse=True)
+
+        for z in s_trimmed:
+            output.write('{}: {}\n'.format(z, dups[z][0]))
+
+        print('Writing full search hits to file...')
+        output.write('\n\nHere are the search results...\n')
+
+        for z in s_trimmed:
+            found_lines = []
+            sesh_ids = set()
+            hits = 0
+
+            find_lines(trimmed, z, sesh_ids, found_lines)
+            find_lines(trimmed, z, sesh_ids, found_lines)
+
+            output.write(
+                '\nFound {} with {} hits.\n'.format(z, trimmed[z][0]))
+
+            for k in found_lines:
+                output.write(k)
+                hits += 1
+            total_hits += hits
+    return total_hits
+
+
+def find_lines(d, z, sesh_ids, found_lines):
     """
     Checks the entire file for lines matching the segment and adds lines with unique session ids
 
     Parameters
     ----------
-    f: string
-        The file to check
+    d: dict(string, (int, list(string)))
+        The dict to check
     z: string
         The segment to check for
     sesh_ids: list(string)
@@ -202,15 +206,13 @@ def find_lines(f, z, sesh_ids, found_lines):
     found_lines: list(string)
         A list of found lines to append to
     """
-    f.seek(0)
-    for _ in range(2):
-        next(f)
-    for line in f:
+    lines = d[z][1]
+    for line in lines:
         line1_split = line.split(',')
-        if z in line:
-            if line1_split[1] not in sesh_ids:
-                sesh_ids.append(line1_split[1])
-                found_lines.append(line)
+        sesh = line1_split[1]
+        if sesh not in sesh_ids:
+            sesh_ids.add(sesh)
+            found_lines.append(line)
 
 
 def main(ctx):
